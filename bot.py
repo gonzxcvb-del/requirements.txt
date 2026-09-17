@@ -10,15 +10,24 @@ MY_TELEGRAM_ID = 8652729878
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Список сайтов для проверки по шаблону
+# Расширенная база платформ (около 20 популярных источников)
 PLATFORMS = {
+    "GitHub": "https://github.com/{}",
     "TikTok": "https://www.tiktok.com/@{}",
     "X (Twitter)": "https://x.com/{}",
     "Instagram": "https://www.instagram.com/{}/",
     "Pinterest": "https://www.pinterest.com/{}/",
     "Steam": "https://steamcommunity.com/id/{}",
     "Habr": "https://habr.com/ru/users/{}/",
-    "Telegram Channel": "https://t.me/{}"
+    "Telegram Channel": "https://t.me/{}",
+    "Reddit": "https://www.reddit.com/user/{}",
+    "Twitch": "https://www.twitch.tv/{}",
+    "SoundCloud": "https://soundcloud.com/{}",
+    "Spotify": "https://open.spotify.com/user/{}",
+    "Steam Community": "https://steamcommunity.com/id/{}",
+    "DeviantArt": "https://www.deviantart.com/{}",
+    "VK": "https://vk.com/{}",
+    "Pikabu": "https://pikabu.co/@{}"
 }
 
 async def check_site(session, name, url_template, query):
@@ -28,7 +37,6 @@ async def check_site(session, name, url_template, query):
     }
     try:
         async with session.get(url, headers=headers, timeout=5, allow_redirects=True) as response:
-            # Если страница отдала 200 OK, профиль с высокой вероятностью существует
             if response.status == 200:
                 return f"• <b>{name}</b>: {url}"
     except Exception:
@@ -36,28 +44,21 @@ async def check_site(session, name, url_template, query):
     return None
 
 async def get_github_info(session, query):
-    """Специальный модуль для мощной инфы по GitHub API"""
     api_url = f"https://api.github.com/users/{query}"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         async with session.get(api_url, headers=headers, timeout=5) as response:
             if response.status == 200:
                 data = await response.json()
-                name = data.get("name") or "Не указано"
-                bio = data.get("bio") or "Нет"
-                company = data.get("company") or "Нет"
-                location = data.get("location") or "Не указана"
-                repos = data.get("public_repos", 0)
-                created = data.get("created_at", "")[:10]
-                
                 return (
-                    f"🐙 <b>GitHub (API Profile):</b>\n"
-                    f"  ├ Имя: {name}\n"
-                    f"  ├ О себе: {bio}\n"
-                    f"  ├ Компания: {company}\n"
-                    f"  ├ Локация: {location}\n"
-                    f"  ├ Репозиториев: {repos}\n"
-                    f"  └ Создан: {created}\n"
+                    f"🐙 <b>GitHub API Details:</b>\n"
+                    f"  ├ Имя: {data.get('name') or 'Не указано'}\n"
+                    f"  ├ О себе: {data.get('bio') or 'Нет'}\n"
+                    f"  ├ Компания: {data.get('company') or 'Нет'}\n"
+                    f"  ├ Локация: {data.get('location') or 'Не указана'}\n"
+                    f"  ├ Публичных репо: {data.get('public_repos', 0)}\n"
+                    f"  ├ Подписчики: {data.get('followers', 0)} | Подписки: {data.get('following', 0)}\n"
+                    f"  └ Создан: {data.get('created_at', '')[:10]}\n"
                     f"  🔗 <i>{data.get('html_url')}</i>"
                 )
     except Exception:
@@ -68,7 +69,7 @@ async def get_github_info(session, query):
 async def cmd_start(message: Message):
     if message.from_user.id != MY_TELEGRAM_ID:
         return
-    await message.answer("🔥 OSINT-бот заряжен! Впиши ник, чтобы начать глубокий поиск.")
+    await message.answer("🔥 OSINT-бот обновлен! Впиши ник для расширенного сканирования.")
 
 @dp.message()
 async def handle_search(message: Message):
@@ -80,13 +81,12 @@ async def handle_search(message: Message):
         await message.answer("⚠️ Введи корректный юзернейм.")
         return
 
-    wait_msg = await message.answer(f"🔍 Запускаю глубокий сбор данных по нику: <code>{query}</code>...", parse_mode="HTML")
+    wait_msg = await message.answer(f"🔍 Запускаю глубокий поиск по базам данных для: <code>{query}</code>...", parse_mode="HTML")
     
     found_sites = []
     github_details = None
 
     async with aiohttp.ClientSession() as session:
-        # Запускаем параллельно запрос к GitHub API и сканирование сайтов
         gh_task = get_github_info(session, query)
         site_tasks = [check_site(session, name, url, query) for name, url in PLATFORMS.items()]
         
@@ -97,17 +97,16 @@ async def handle_search(message: Message):
             if res:
                 found_sites.append(res)
 
-    # Собираем итоговое сообщение
-    response_blocks = [f"🎯 <b>Результаты анализа для <code>{query}</code>:</b>\n"]
+    response_blocks = [f"🎯 <b>Результаты OSINT для <code>{query}</code>:</b>\n"]
     
     if github_details:
         response_blocks.append(github_details + "\n")
         
     if found_sites:
-        response_blocks.append("🌐 <b>Найденные профили на сайтах:</b>\n" + "\n".join(found_sites))
+        response_blocks.append(f"🌐 <b>Найдено профилей ({len(found_sites)}):</b>\n" + "\n".join(found_sites))
     
     if not github_details and not found_sites:
-        final_text = f"❌ По нику <code>{query}</code> ничего толкового не обнаружено."
+        final_text = f"❌ По нику <code>{query}</code> ничего не найдено."
     else:
         final_text = "\n".join(response_blocks)
 
